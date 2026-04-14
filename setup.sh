@@ -28,12 +28,13 @@ VAULT="${VAULT/#\~/$HOME}"
 mkdir -p "$VAULT/Diary/sessions" "$VAULT/Projects" "$VAULT/Entities"
 echo "vault ready at $VAULT"
 
-# --- 2. Install hook --------------------------------------------------------
+# --- 2. Install hooks -------------------------------------------------------
 HOOK_DIR="$HOME/.claude/hooks"
 mkdir -p "$HOOK_DIR" "$HOOK_DIR/state"
-cp "$REPO_DIR/hooks/save-to-memos.py" "$HOOK_DIR/save-to-memos.py"
-chmod +x "$HOOK_DIR/save-to-memos.py"
-echo "hook installed at $HOOK_DIR/save-to-memos.py"
+cp "$REPO_DIR/hooks/save-to-memos.py"           "$HOOK_DIR/save-to-memos.py"
+cp "$REPO_DIR/hooks/warm-context-from-memos.py" "$HOOK_DIR/warm-context-from-memos.py"
+chmod +x "$HOOK_DIR/save-to-memos.py" "$HOOK_DIR/warm-context-from-memos.py"
+echo "hooks installed at $HOOK_DIR/"
 
 # --- 3. Patch settings.json --------------------------------------------------
 SETTINGS="$HOME/.claude/settings.json"
@@ -49,22 +50,24 @@ hooks = data.setdefault("hooks", {})
 
 STOP_CMD = "/usr/bin/python3 $HOME/.claude/hooks/save-to-memos.py"
 END_CMD  = "/usr/bin/python3 $HOME/.claude/hooks/save-to-memos.py --end"
+WARM_CMD = "/usr/bin/python3 $HOME/.claude/hooks/warm-context-from-memos.py"
 
-def ensure(event, cmd, timeout):
+def ensure(event, cmd, timeout, dedup_token):
     arr = hooks.setdefault(event, [])
     if not arr:
         arr.append({"hooks": []})
     group = arr[0]
     existing = [h.get("command","") for h in group.get("hooks", [])]
-    if not any("save-to-memos.py" in c and (("--end" in c) == ("--end" in cmd)) for c in existing):
+    if not any(dedup_token in c for c in existing):
         group.setdefault("hooks", []).append({
             "type": "command",
             "command": cmd,
             "timeout": timeout,
         })
 
-ensure("Stop", STOP_CMD, 10)
-ensure("SessionEnd", END_CMD, 15)
+ensure("Stop",         STOP_CMD, 10, "save-to-memos.py")
+ensure("SessionEnd",   END_CMD,  15, "save-to-memos.py --end")
+ensure("SessionStart", WARM_CMD, 10, "warm-context-from-memos.py")
 p.write_text(json.dumps(data, indent=2))
 print("settings.json patched")
 PYEOF
