@@ -1,0 +1,19 @@
+# Local-only marketing assets (LinkedIn launch carousel etc.)
+carousel/
+
+# Local screenshots kept private
+assets/*.local.*
+
+# OS
+.DS_Store
+__pycache__/
+*.pyc
+
+# Local tool state (claude-mem, tether, etc.)
+tether.db
+tether.db-shm
+tether.db-wal
+**/tether.db
+**/tether.db-shm
+**/tether.db-wal
+.claude-mem/
