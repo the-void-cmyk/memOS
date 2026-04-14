@@ -30,11 +30,13 @@ LLMs don't have persistent memory by default. Context windows are long but sessi
 
 ## The solution
 
-A local vault of markdown files + two shell hooks:
+A local vault of markdown files + three shell hooks:
 
 - **Stop hook** fires after every assistant reply → appends new turns to `Diary/sessions/<date>.md`
 - **SessionEnd hook** fires when you exit → writes a completion marker
-- Claude reads the vault at session start to rehydrate context
+- **SessionStart hook** (optional) fires at session start → auto-injects the project hub + last 3 session notes when your cwd matches a known wing
+
+See [`docs/warm-context.md`](docs/warm-context.md) for how the SessionStart hook decides what to load.
 
 Works with **Claude Code** (native hooks) and **Claude Desktop** (via Filesystem MCP).
 
