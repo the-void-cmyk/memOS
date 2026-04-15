@@ -38,7 +38,7 @@ A local vault of markdown files + three shell hooks:
 
 See [`docs/warm-context.md`](docs/warm-context.md) for how the SessionStart hook decides what to load.
 
-Works with **Claude Code** (native hooks) and **Claude Desktop** (via Filesystem MCP).
+Works with **Claude Code** (the CLI) via native hooks.
 
 ## What it looks like
 
@@ -64,10 +64,6 @@ What the installer does:
 4. Adds `MEMOS_VAULT` to your shell profile
 
 Open a new terminal, start Claude Code in any project, and look inside `~/Documents/memOS/Diary/sessions/` - the conversation is there.
-
-## Install (Claude Desktop)
-
-See [`docs/claude-desktop.md`](docs/claude-desktop.md). Two steps: install Filesystem MCP, point it at the vault, restart Desktop. Claude Desktop then reads and writes the same vault.
 
 ---
 

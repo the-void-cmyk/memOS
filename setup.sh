@@ -105,7 +105,6 @@ Next steps:
         $VAULT/Diary/sessions/
 
 Optional:
-  - Claude Desktop: see docs/claude-desktop.md for MCP filesystem setup
   - Customize the graph/theme: drop snippets into $VAULT/.obsidian/snippets/
 
 EOF
