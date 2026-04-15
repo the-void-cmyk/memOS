@@ -47,7 +47,7 @@ projects_dir = VAULT / "Projects"
 if not projects_dir.exists():
     sys.exit(0)
 
-# --- Match the cwd to a wing -------------------------------------------------
+# --- Match the cwd to a wing (optional) --------------------------------------
 wings = [p.name for p in projects_dir.iterdir() if p.is_dir()]
 matched_wing = None
 # Longest wing name first so e.g. "sunlouvre-staging" matches "sunlouvre".
@@ -56,69 +56,117 @@ for w in sorted(wings, key=len, reverse=True):
         matched_wing = w
         break
 
-if not matched_wing:
+sessions_dir = VAULT / "Diary" / "sessions"
+
+# --- Always: find the single most-recent session note ------------------------
+last_session = None
+if sessions_dir.exists():
+    try:
+        last_session = max(
+            sessions_dir.glob("*.md"),
+            key=lambda p: p.stat().st_mtime,
+            default=None,
+        )
+    except Exception:
+        last_session = None
+
+# If there's no wing match AND no last session, nothing useful to inject.
+if not matched_wing and not last_session:
     sys.exit(0)
 
-wing_dir = projects_dir / matched_wing
-hub = wing_dir / f"{matched_wing}.md"
-
 parts = []
-parts.append(f"# memOS warm context - wing: {matched_wing}")
+parts.append("# memOS - warm context")
 parts.append("")
 parts.append(
-    "The following notes are auto-loaded from your local memOS vault for this "
-    "session because the working directory matches a known project."
+    "You have persistent memory from past Claude Code sessions. "
+    "The notes below were auto-loaded from the user's local memOS vault "
+    "so this session starts with continuity, not from scratch."
+)
+parts.append("")
+parts.append(
+    "**Use this context as background** when answering. If the user asks "
+    "about past work not covered here, `Grep` the full vault at "
+    f"`{VAULT}` - especially `Diary/sessions/` and `Projects/<wing>/`."
 )
 parts.append("")
 
-# --- Load project hub --------------------------------------------------------
-if hub.exists():
+# --- Section 1: most recent session (ALWAYS shown) ---------------------------
+if last_session:
     try:
-        parts.append(f"## Hub: {hub.name}")
-        parts.append("")
-        parts.append(hub.read_text(encoding="utf-8", errors="replace"))
-        parts.append("")
+        body = last_session.read_text(encoding="utf-8", errors="replace")
     except Exception:
-        pass
+        body = ""
+    # Keep head (frontmatter + first turn) and tail (last ~4K chars).
+    if len(body) > 6000:
+        snippet = body[:2000] + "\n\n...[truncated]...\n\n" + body[-4000:]
+    else:
+        snippet = body
+    parts.append("## Previous session (most recent)")
+    parts.append("")
+    parts.append(
+        f"File: `Diary/sessions/{last_session.name}` "
+        f"(showing head + tail if long - grep this file for full content)"
+    )
+    parts.append("")
+    parts.append(snippet)
+    parts.append("")
 
-# --- Load the last N session notes with matching cwd -------------------------
-sessions_dir = VAULT / "Diary" / "sessions"
-if sessions_dir.exists():
-    candidates = []
-    # Scan session files newest first by mtime.
-    for note in sorted(sessions_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True):
+# --- Section 2: wing-specific context when cwd matches -----------------------
+if matched_wing:
+    wing_dir = projects_dir / matched_wing
+    hub = wing_dir / f"{matched_wing}.md"
+
+    parts.append(f"## Current wing: {matched_wing}")
+    parts.append("")
+    parts.append(
+        f"Your working directory matches the `{matched_wing}` project in memOS. "
+        f"The hub and latest wing sessions are pre-loaded below."
+    )
+    parts.append("")
+
+    if hub.exists():
         try:
-            head = note.read_text(encoding="utf-8", errors="replace")[:4096]
+            parts.append(f"### Hub: {hub.name}")
+            parts.append("")
+            parts.append(hub.read_text(encoding="utf-8", errors="replace"))
+            parts.append("")
         except Exception:
-            continue
-        # Look for "cwd: <...>" in the frontmatter. Match if matched_wing is in it.
-        m = re.search(r"^cwd:\s*(.+)$", head, re.MULTILINE)
-        if not m:
-            continue
-        note_cwd = m.group(1).strip().strip('"').lower()
-        if matched_wing.lower() in note_cwd:
-            candidates.append(note)
-        if len(candidates) >= MAX_SESSIONS:
-            break
+            pass
 
-    if candidates:
-        parts.append(f"## Recent sessions in this wing (latest {len(candidates)})")
-        parts.append("")
-        for note in candidates:
+    if sessions_dir.exists():
+        candidates = []
+        for note in sorted(sessions_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True):
+            if last_session and note == last_session:
+                # Skip - already loaded above.
+                continue
             try:
-                body = note.read_text(encoding="utf-8", errors="replace")
+                head = note.read_text(encoding="utf-8", errors="replace")[:4096]
             except Exception:
                 continue
-            parts.append(f"### {note.name}")
+            m = re.search(r"^cwd:\s*(.+)$", head, re.MULTILINE)
+            if not m:
+                continue
+            note_cwd = m.group(1).strip().strip('"').lower()
+            if matched_wing.lower() in note_cwd:
+                candidates.append(note)
+            if len(candidates) >= MAX_SESSIONS:
+                break
+
+        if candidates:
+            parts.append(f"### Recent sessions in {matched_wing} (latest {len(candidates)})")
             parts.append("")
-            parts.append(body)
-            parts.append("")
+            for note in candidates:
+                try:
+                    body = note.read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    continue
+                parts.append(f"#### {note.name}")
+                parts.append("")
+                parts.append(body)
+                parts.append("")
 
 parts.append("---")
-parts.append(
-    f"End of memOS warm context. Full vault at `{VAULT}`. "
-    f"`Grep` it for anything beyond what's loaded here."
-)
+parts.append(f"End of memOS warm context. Full vault: `{VAULT}`")
 
 context = "\n".join(parts)
 
